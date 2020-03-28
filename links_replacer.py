@@ -13,6 +13,7 @@ import logging
 import os
 import re
 import sys
+import argparse
 
 #########[ Settings & Data ]###################################################
 
@@ -29,6 +30,8 @@ FILE_NAMES_TO_UPDATE = [
 ]
 # The original files will be renamed with this extension
 FILE_SUFFIX_BACKUP = ".backup"
+# the input directory where the files to replace links are
+input_dir          = ""
 
 #########[ Module code ]#######################################################
 
@@ -99,24 +102,183 @@ def replace_links_at_directory(input_directory):
                 # save modified file data
                 save_file_content(file_path, file_content_modified)
 
-def main():
-    if len(sys.argv) == 2 and os.path.exists(sys.argv[1]):
-        input_directory = sys.argv[1]
-        print("\n\nInitializing links replacer at directory {}\n\n".format(input_directory))
-        logging.basicConfig(
-            level=logging.INFO, 
-            format='%(asctime)s - %(levelname)s - %(funcName)s - %(message)s'
+def init_app_from_cli_args():
+
+    def _print_welcome_message(verbosity_flag):
+        # checks the verbosity flag in order to print welcome message
+        if verbosity_flag:
+            welcome_message = \
+                "%-23s" % "Input dir: "            + input_dir                  + "\n" + \
+                "%-23s" % "Files to be updated: "  + str(FILE_NAMES_TO_UPDATE)  + "\n" + \
+                "%-23s" % "link_prefix_pattern: "  + LINK_PREFIX_PATTERN        + "\n" + \
+                "%-23s" % "link_suffix_pattern: "  + LINK_SUFFIX_PATTERN        + "\n" + \
+                "%-23s" % "link_prefix_replacer: " + LINK_PREFIX_REPLACER       + "\n" + \
+                "%-23s" % "link_suffix_replacer: " + LINK_SUFFIX_REPLACER       + "\n" + \
+                "%-23s" % "file_suffix_backup: "   + FILE_SUFFIX_BACKUP 
+        else:
+            welcome_message = \
+                "- Input dir: "            + input_dir
+        # print the welcome message
+        print("\n\n===================================================")
+        print("WELCOME TO GOOGLE DOCS LINKS REPLACER")
+        print("===================================================\n\n")
+        print(welcome_message)
+        print("\n\n===================================================")
+        print("===================================================\n\n")
+
+    def _parse_cli_args():
+        # Create the parset object
+        parser = argparse.ArgumentParser(
+            description='Help of usage for Google Docs link replacer tool by Agustin Bassi'
             )
-        replace_links_at_directory(input_directory)
-    else:
-        help_str = """
-        Error when running links replacer.
-        To run it correctly is necessary to pass an existent path where html files are
-        Example of use:
+        # Add the cli arguments supported
+        parser.add_argument(
+            'input_dir',
+            metavar='input-dir',
+            type=str,
+            help='The absolute path where folder with Exported Google Docs are'
+            )
+        parser.add_argument(
+            "-v", "--verbosity", 
+            action="store_true",
+            help="Set the verbosity level of application",
+            default=False
+            )
+        parser.add_argument(
+            "-d", "--debug", 
+            action="store_true",
+            help="Set debug level to logging module",
+            default=False
+            )
+        parser.add_argument(
+            "--files-to-replace",  
+            metavar='files-to-replace',
+            nargs="*", 
+            type=str,
+            help="The list of files that the tool will try to find to replace its links",
+            default=FILE_NAMES_TO_UPDATE,
+            )
+        parser.add_argument(
+            "--link-prefix-pattern",
+            metavar='link-prefix-pattern',
+            type=str,
+            help="The preffix pattern which links are prefixed by the Google Docs export tool",
+            default=LINK_PREFIX_PATTERN,
+            )
+        parser.add_argument(
+            "--link-suffix-pattern",
+            metavar='link-suffix-pattern',
+            type=str,
+            help="The suffix pattern which links are suffixed by the Google Docs export tool",
+            default=LINK_SUFFIX_PATTERN,
+            )
+        parser.add_argument(
+            "--link-prefix-replacer",
+            metavar='link-prefix-replacer',
+            type=str,
+            help="The content that will be replaced when tool finds the --link-prefix-pattern",
+            default=LINK_PREFIX_REPLACER,
+            )
+        parser.add_argument(
+            "--link-suffix-replacer",
+            metavar='link-suffix-replacer',
+            type=str,
+            help="The content that will be replaced when tool finds the --link-suffix-pattern",
+            default=LINK_SUFFIX_REPLACER,
+            )
+        parser.add_argument(
+            "--file-suffix-backup",
+            metavar='file-suffix-backup',
+            type=str,
+            help="The suffix that will be appended to orinal(s) files-to-replace to save them as a backup",
+            default=FILE_SUFFIX_BACKUP,
+            )
+        # Execute the parse_args() method
+        args = parser.parse_args()
+        # return the arguments obtained
+        return args
+
+    def _update_application_values_with_cli_args(args):
+        # use the application settings to update the values
+        global LINK_PREFIX_PATTERN
+        global LINK_SUFFIX_PATTERN
+        global LINK_PREFIX_REPLACER
+        global LINK_SUFFIX_REPLACER
+        global FILE_NAMES_TO_UPDATE
+        global FILE_SUFFIX_BACKUP
+        global input_dir
+
+        # update the values with ones obtained from the cli args
+        LINK_PREFIX_PATTERN  = args.link_prefix_pattern
+        LINK_SUFFIX_PATTERN  = args.link_suffix_pattern
+        LINK_PREFIX_REPLACER = args.link_prefix_replacer
+        LINK_SUFFIX_REPLACER = args.link_suffix_replacer
+        FILE_SUFFIX_BACKUP   = args.file_suffix_backup
+
+        # chech if debug flag were passed to set the logging mode
+        if args.debug:
+            logging.basicConfig(
+                level=logging.DEBUG, 
+                format='[ %(levelname)5s ] - %(funcName)26s -> %(message)s'
+                )
+        else:
+            logging.basicConfig(
+                level=logging.INFO, 
+                format='[%(levelname)5s] - [%(funcName)26s] - %(message)s'
+                )
+        # Check if files to replace contains a list of file(s)
+        if len(args.files_to_replace) > 0:
+            FILE_NAMES_TO_UPDATE = args.files_to_replace
+        # check if input dir passed as positional argument exists
+        if os.path.exists(args.input_dir):
+            input_dir = args.input_dir
+        else:
+            logging.error("Input dir '{}' is not a valid director".format(input_dir))
+            sys.exit(1)
         
-            python links_replacer.py absolute_path_where_posts_are
-        """
-        print(help_str)
+    # get the cli args
+    cli_args = _parse_cli_args()
+    # init application with cli args values
+    _update_application_values_with_cli_args(cli_args)
+    # print welcome message
+    _print_welcome_message(cli_args.verbosity)
+
+def main():
+    
+
+    init_app_from_cli_args()
+
+    replace_links_at_directory(input_dir)
+
+    # input_directory = parse_cli_kwargs()
+
+    # print("\n\nInitializing links replacer at directory {}\n\n".format(input_directory))
+
+    # logging.basicConfig(
+    #     level=logging.DEBUG, 
+    #     format='%(asctime)s - %(levelname)s - %(funcName)s - %(message)s'
+    #     )
+
+    # replace_links_at_directory(input_directory)
+    
+
+    # if len(sys.argv) == 2 and os.path.exists(sys.argv[1]):
+    #     input_directory = sys.argv[1]
+    #     print("\n\nInitializing links replacer at directory {}\n\n".format(input_directory))
+    #     logging.basicConfig(
+    #         level=logging.INFO, 
+    #         format='%(asctime)s - %(levelname)s - %(funcName)s - %(message)s'
+    #         )
+    #     replace_links_at_directory(input_directory)
+    # else:
+    #     help_str = """
+    #     Error when running links replacer.
+    #     To run it correctly is necessary to pass an existent path where html files are
+    #     Example of use:
+        
+    #         python links_replacer.py absolute_path_where_posts_are
+    #     """
+    #     print(help_str)
 
 if __name__ == "__main__":
     main()
