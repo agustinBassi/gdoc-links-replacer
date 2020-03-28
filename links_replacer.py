@@ -27,6 +27,8 @@ FILE_NAMES_TO_UPDATE = [
     "content-spanish.html",
     "content-english.html"
 ]
+# The original files will be renamed with this extension
+FILE_SUFFIX_BACKUP = ".backup"
 
 #########[ Module code ]#######################################################
 
@@ -34,7 +36,7 @@ def replace_file_links(file_content):
     file_content = file_content.replace(LINK_PREFIX_PATTERN, LINK_PREFIX_REPLACER)
     file_content = file_content.replace(LINK_SUFFIX_PATTERN, LINK_SUFFIX_REPLACER)
     file_content = file_content.strip("!'")
-    logging.info("Links were replaced in file")
+    logging.info("Links were replaced in file content")
     return file_content
 
 def chech_if_file_exists(file_path, file_name):
@@ -59,12 +61,12 @@ def read_file_as_string(file_path):
         logging.error("While opening file at path {}".format(file_path))
     return file_content
 
-def update_file_content(file_path, file_content):
+def save_file_content(file_path, file_content):
     try:
         with open(file_path,'w') as _file:
             _file.write(file_content)
 
-        logging.info("Updated file content at path {}".format(file_path))
+        logging.info("Save file content at path {}".format(file_path))
     except:
         logging.error("While writing file at path {}".format(file_path))
     return file_content
@@ -84,10 +86,18 @@ def replace_links_at_directory(input_directory):
     for dir_name, subdir_list, file_list in os.walk(input_directory):
         for file_name in FILE_NAMES_TO_UPDATE:
             if chech_if_file_exists(dir_name, file_name):
+                # get the file path
                 file_path = os.path.join(dir_name, file_name)
-                file_content = read_file_as_string(file_path)
-                file_content = replace_file_links(file_content)
-                update_file_content(file_path, file_content)
+                # create a filepath to store file original content
+                file_path_backup = file_path + FILE_SUFFIX_BACKUP
+                # read the original content
+                file_content_original = read_file_as_string(file_path)
+                # modify the original file content with replaced links
+                file_content_modified = replace_file_links(file_content_original)
+                # save the original file data
+                save_file_content(file_path_backup, file_content_original)
+                # save modified file data
+                save_file_content(file_path, file_content_modified)
 
 def main():
     if len(sys.argv) == 2 and os.path.exists(sys.argv[1]):
